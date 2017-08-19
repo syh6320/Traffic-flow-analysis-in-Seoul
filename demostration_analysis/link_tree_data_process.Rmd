@@ -1,0 +1,98 @@
+---
+title: "link_tree_all_data"
+author: "syh"
+date: "June 21, 2017"
+output: pdf_document
+---
+
+```{r}
+#
+# write.csv(x = link_data_all, file = 'data/link_data_all.csv', row.names = F)
+```
+
+```{r}
+link_data_all <- read.csv(file = 'data/link_data_all.csv', stringsAsFactors = F)
+```
+
+```{r}
+link_data_all$hour <- as.factor(link_data_all$hour)
+link_data_all$link_id <- as.factor(link_data_all$link_id)
+link_data_all$demo <- as.factor(link_data_all$demo)
+link_data_all$date <- as.factor(link_data_all$date)
+```
+
+
+```{r}
+library(ROSE)
+link_all_data_balance <- ovun.sample(demo ~ ., data = link_data_all, N = dim(link_data_all)[1]*2, method = 'both')$data
+```
+
+```{r}
+table(link_all_data_balance$demo)
+```
+
+```{r}
+unique(link_all_data_balance$date)
+```
+
+
+```{r}
+link_all_data_balance$holiday <- as.integer(link_all_data_balance$date %in% c(20161119,20161126,20161210,20161203,20160618))
+```
+
+```{r}
+link_all_data_balance$holiday <- as.factor(link_all_data_balance$holiday)
+```
+
+```{r}
+link_all_data_balance$hour <- as.integer(link_all_data_balance$hour)
+```
+
+
+```{r}
+time_per_fun <- function(x){
+  if((0<=x & x <= 5) | (22 <= x & x <= 23)){
+    'evening'
+  }else if((6<= x & x <= 9)){
+    'morning_commute'
+  }else if((10 <= x  & x <= 16)){
+    'working'
+  }else{
+    'afternoon_commute'
+  }
+}
+```
+
+
+```{r}
+
+link_all_data_balance$time_range <- sapply(link_all_data_balance$hour, FUN = time_per_fun)
+```
+
+```{r}
+link_all_data_balance$time_range <- as.factor(link_all_data_balance$time_range)
+```
+
+```{r}
+link_all_data_balance$hour <- as.factor(link_all_data_balance$hour)
+```
+
+```{r}
+write.csv(x = link_all_data_balance, file = 'data/link_all_data_balance.csv')
+```
+
+
+```{r}
+link_model_data <- subset(link_all_data_balance, 
+                          select = - c(date, link_id, hour, num_taxi, avg_speed))
+```
+
+```{r}
+colnames(link_model_data)
+```
+
+
+```{r}
+write.csv(x = link_model_data, file = 'data/model_data.csv')
+```
+

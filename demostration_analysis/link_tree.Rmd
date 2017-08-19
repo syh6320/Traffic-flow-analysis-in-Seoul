@@ -1,0 +1,116 @@
+---
+title: "link_tree"
+author: "syh"
+date: "June 10, 2017"
+output: pdf_document
+---
+
+```{r}
+# import link data
+link_data <- read.csv(file = "data/model_data.csv", stringsAsFactor = F)[-1]
+```
+
+```{r}
+#
+# head(link_data)
+str(link_data)
+# summary(link_data)
+```
+
+```{r}
+link_data$demo <- as.factor(link_data$demo)
+link_data$holiday <- as.factor(link_data$holiday)
+link_data$time_range <- as.factor(link_data$time_range)
+```
+
+```{r}
+summary(link_data)
+```
+
+
+
+```{r}
+# missing value?
+sapply(link_data, function(x){sum(is.na(x))})
+```
+
+
+```{r}
+table(link_data[,"demo"])
+#we know the data set is seriously imbalanced
+```
+
+```{r}
+cand_data <- link_data
+```
+
+
+```{r}
+# if we drop holiday, time_range
+link_data <- subset(cand_data,select = - c(time_range,holiday))
+```
+
+
+```{r}
+# let split data into train and test
+set.seed(1)
+train_ind <- sample(x = c(1:dim(link_data)[1]), size = dim(link_data)[1] * 0.7)
+
+train_data <- link_data[train_ind,]
+test_data <- link_data[-train_ind,]
+```
+
+```{r}
+dim(train_data)
+```
+
+
+```{r}
+# let's first use rpart to train a decision tr
+library(rpart)
+tree <- rpart(formula = "demo ~. -demo", data = train_data, 
+              method = "class", 
+              control = rpart.control(minsplit = 20, cp = 0))
+```
+
+```{r}
+# look at what the tree is like
+tree
+```
+
+```{r}
+# xerror: error in cross validation
+# xstd: standard deviation of error in cross vaidation
+printcp(tree)
+```
+
+```{r}
+# let's have a look at complexity parameter against xerror
+plotcp(tree)
+```
+
+```{r}
+ # optimal cp
+cptable <- as.data.frame(tree$cptable)
+opt_cp <- cptable[with(cptable, min(which((xerror - xstd) < min(xerror)))), "CP"]
+```
+
+```{r}
+opt_tree <- prune(tree = tree, cp = opt_cp)
+```
+
+```{r}
+# use it on test data
+est_prob <- predict(object = opt_tree, newdata = test_data)
+```
+
+```{r}
+library(ROSE)
+accuracy.meas(response = test_data$demo, predicted = est_prob[,2], threshold = 0.5)
+```
+
+```{r}
+# let's look at roc, auc
+roc.curve(response = test_data$demo, predicted = est_prob[,2], plotit = T)
+```
+

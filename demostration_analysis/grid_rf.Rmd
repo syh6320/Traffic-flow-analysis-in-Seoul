@@ -1,0 +1,139 @@
+---
+title: "grid_rf"
+author: "syh"
+date: "June 19, 2017"
+output: pdf_document
+---
+
+```{r}
+# import grid data
+grid_data <- read.csv(file = "data/grid_all.csv", stringsAsFactors = F)[,-1]
+```
+
+```{r}
+# let's just use rrate and speed to predict demo
+grid_data <- subset(x = grid_data, select = -c(date,hour,grid))
+```
+
+
+```{r}
+# let's convert , hour, grid, demo to factors
+
+# grid_data[,"hour"] <- as.factor(grid_data[,"hour"])
+# grid_data[,"grid"] <- as.factor(grid_data[,"grid"])
+grid_data[,"demo"] <- as.factor(grid_data[,"demo"])
+```
+
+
+```{r}
+# as we know that the data is seriously imbalanced
+# so we need to deal with this problem by ROSE
+library(ROSE)
+grid_data <- ROSE(demo ~ ., data = grid_data, p = 0.5, seed = 1)$data
+table(grid_data$demo)
+```
+
+```{r}
+# let split data into train and test
+set.seed(1)
+train_ind <- sample(x = c(1:dim(grid_data)[1]), size = dim(grid_data)[1] * 0.7)
+
+train_data <- grid_data[train_ind,]
+test_data <- grid_data[-train_ind,]
+
+# train_x <- train_data[,1:dim(train_data)[2] - 1]
+# train_y <- train_data[dim(train_data)[2]]
+```
+
+```{r}
+# let's use random forest
+library(randomForest)
+```
+
+```{r}
+set.seed(2)
+formula <- "demo ~.-demo"
+rf <- randomForest(formula = as.formula(formula), data = train_data, 
+                   ntree = 500, importance = TRUE)
+```
+
+```{r}
+varImpPlot(rf)
+```
+
+
+```{r}
+library(mlr)
+#create a task
+traintask <- makeClassifTask(data = train_data,target = "demo", positive = "1") 
+testtask <- makeClassifTask(data = test_data,target = "demo", positive = "1")
+
+```
+
+```{r}
+traintask
+```
+
+
+```{r}
+#create learner
+rf_lrn <- makeLearner("classif.randomForest",predict.type = "response")
+rf_lrn$par.vals <- list(ntree = 200L, importance=TRUE)
+```
+
+
+```{r}
+#set 5 fold cross validation
+rdesc <- makeResampleDesc("CV",iters=5L)
+
+# Fit models according to a resampling strategy.
+r <- resample(learner = rf_lrn, task = traintask, resampling = rdesc, measures = mmce, show.info = T)
+```
+
+```{r}
+getParamSet(rf_lrn)
+```
+
+
+```{r}
+
+# define parameters we want to tune -- you may want to adjust the bounds
+ps <- makeParamSet(
+   makeIntegerLearnerParam(id = "ntree", default = 150L, lower = 100L, upper = 200L),
+   makeIntegerLearnerParam(id = "nodesize", default = 15L, lower = 10L, upper = 80L),
+   makeIntegerLearnerParam(id = "mtry", default = 8L, lower = 6L, upper = 12L)
+ )
+
+
+# random sampling of the configuration space with at most 100 samples
+ctrl <- makeTuneControlRandom(maxit = 100L)
+
+
+tune <- tuneParams(learner = rf_lrn, task = traintask, resampling = rdesc, measures = list(mmce), par.set = ps, control = ctrl, show.info = T)
+
+```
+
+```{r}
+opt_rf <- randomForest(formula = as.formula(formula), data = train_data, 
+                       ntree = 155, mtry = 8, nodesize = 60, importance = TRUE)
+```
+
+```{r}
+opt_rf$confusion
+```
+
+
+```{r}
+est_demo = predict(object = opt_rf, newdata = test_data)
+```
+
+
+```{r}
+# let's check the performance of opt_tre
+accuracy.meas(response = test_data$demo, predicted = est_demo, threshold = 0.5)
+```
+
+```{r}
+# let's look at roc, auc
+roc.curve(response = test_data$demo, predicted = est_demo, plotit = T)
+```

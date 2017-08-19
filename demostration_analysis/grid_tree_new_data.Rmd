@@ -1,0 +1,16 @@
+---
+title: "grid_tree_new_data"
+author: "syh"
+date: "June 21, 2017"
+output: pdf_document
+---
+
+```{r}
+# get data
+grid_data <- read.csv(file = 'data/grid_all.csv', stringsAsFactors = F)
+```
+
+```{r}
+head(grid_data)
+```
+
